@@ -1,8 +1,9 @@
 #include "ofApp.h"
+
 #include <glm/gtx/intersect.hpp>
 
+//  (c) Troy Perez - 17 October 2022
 
-//implement area light lambert
 
 // Intersect Ray with Plane  (wrapper on glm::intersect*
 //
@@ -46,480 +47,71 @@ Ray RenderCam::getRay(float u, float v) {
 	return(Ray(position, glm::normalize(pointOnPlane - position)));
 }
 
+
 //--------------------------------------------------------------
-//setup gui, scene objects, lights, textures, and camera
-//
-void ofApp::setup(){
+void ofApp::setup() {
 	image.allocate(imageWidth, imageHeight, ofImageType::OF_IMAGE_COLOR);
 
 	gui.setup();
-	string lights = "Light Parameters";
-	//gui.add(lightLabel.setup(lights));
-
-	gui.add(intensity.setup("Light intensity", .2, .05, .5));
+	gui.add(intensity.setup("Light intensity", .2, .05, 2));
+	gui.add(areaLightIntensity.setup("area light intensity", .5, .05, 2));
 	gui.add(power.setup("Phong p", 100, 10, 10000));
-	gui.add(spotLightAngle.setup("Spot Light Angle", 5, 5, 30));
-	gui.add(areaLightWidth.setup("Area Light Width", 5, 1, 10));
-	gui.add(lightTypeToggle.setup("Light Type", 1, 1, 3));
-
-
-
-
-
-	string spheres = "Sphere Parameters";
-	//gui.add(sphereLabel.setup(spheres));
-
-	gui.add(scale.setup("sphere scale", .5, .1, 3));
-	gui.add(color.setup("sphere color", glm::vec3(0,0,255), glm::vec3(0,0,0), glm::vec3(255,255,255)));
-
-
-	bHide = false;
+	bHide = true;
 
 	theCam = &mainCam;
-	mainCam.setDistance(10);
-	mainCam.setNearClip(.1);
-	sideCam.setPosition(glm::vec3(5, 0, 0));
-	sideCam.lookAt(glm::vec3(0, 0, 0));
-	sideCam.setNearClip(.1);
-	previewCam.setFov(90);
-	previewCam.setPosition(0, 0, 10);
+	mainCam.setPosition(glm::vec3(0, 75, 75));
+	mainCam.setTarget(glm::vec3(0, 0, 0));
+	imageCam.setPosition(glm::vec3(0, 500, 500));
+	imageCam.lookAt(glm::vec3(0, 0, 0));
+	previewCam.setPosition(renderCam.position);
 	previewCam.lookAt(glm::vec3(0, 0, -1));
 
-
-	groundTexture.load("bamboo.jpg");
-	groundTextureSpecular.load("bamboo_spec.jpg");
-
-	wallTexture.load("ceramic_wall.jpg");
-	wallTextureSpecular.load("ceramic_wall_spec.jpg");
-
-	scene.clear();
-
-	scene.push_back(new Plane(glm::vec3(-1, -2, 0), glm::vec3(0, 1, 0), ofColor::darkBlue, 12, 10));				//ground plane
-
-	scene.push_back(new Plane(glm::vec3(-1, 1, -5), glm::vec3(0, 0, 1), ofColor::darkGray, 20, 10));	        	//wall plane
-	
-	aimPoint.clear();
-
-	aimPoint.push_back(new Sphere(glm::vec3(1, -2, 0), aimPointRadius));
-
-	light.clear();
-
-	light.push_back(new Light(glm::vec3(10, 5, 5), aimPoint[0]->position, .2, 15, 5));			//top right light
-	numofLights++;
-
-	scene[0]->setImage(groundTexture);
-	scene[0]->setImageSpec(groundTextureSpecular);
-
-
-	scene[1]->setImage(wallTexture);
-	scene[1]->setImageSpec(wallTextureSpecular);
-
+	cout << "h to toggle GUI" << endl;
+	cout << "c to toggle camera mode" << endl;
 	cout << "t to start ray tracer" << endl;
-	cout << "r to toggle render image" << endl;
-	cout << "c to toggle camera control" << endl;
-	cout << "j to create new sphere" << endl;
-	cout << "d to delete selected sphere" << endl;
-	cout << "l to create new light" << endl;
-	cout << "k to delete selected light" << endl;
-	cout << "h to toggle gui" << endl;
-	cout << "select a sphere or a light to change the parameters" << endl;
+	cout << "d to show render" << endl;
+	cout << "F1 for easy cam" << endl;
+	cout << "F2 for render cam preview" << endl;
+	cout << "arrow keys to change selected cone angle" << endl;
+
+	aimPoint.clear();
+	areaLightPos.clear();
+	angle.clear();
+
+	aimPoint.push_back(glm::vec3(1, -5, 0));
+	areaLightPos.push_back(glm::vec3(-20, 30, 45));
+	angle.push_back(15);
+
+
+	//aimPoint.push_back(glm::vec3(3, 3, 0));
+	areaLightPos.push_back(glm::vec3(-50, 30, 45));
+	angle.push_back(15);
 }
 
-//--------------------------------------------------------------
-//update scene object and light parameters based on gui
+//updates the angle of the cone width
 //
-void ofApp::update() {
-
-	float angle = spotLightAngle;
-
-	glm::vec3 colorSlider = color;
-
-	//update scene object parameters
-	//
-	for (int i = 0; i < scene.size(); i++) {
-		if (objSelected()) {
-			if (scene[i] == selected[0]) {
-				scene[i]->radius = scale;
-				scene[i]->diffuseColor = ofColor(colorSlider.x, colorSlider.y, colorSlider.z);
-			}
+void ofApp::updateAngle(bool increase) {
+	if (increase) {
+		if (!mainCam.getMouseInputEnabled()) {
+			if (angle[lightIndex] < 25) angle[lightIndex] += .5;
+			areaLights[lightIndex]->Height += .5;
 		}
-	}
-	
-
-	//update light parameters
-	//
-	for (int i = 0; i < light.size(); i++) {
-		light[i]->aimPoint = aimPoint[i]->position;
-		if (objSelected()) {
-			if (light[i] == selected[0]) {
-				light[i]->radius = scale;
-				light[i]->intensity = intensity;
-				light[i]->power = power;
-				light[i]->coneAngleDeg = angle;
-				light[i]->coneAngle = tan(glm::radians(angle)) * light[i]->coneHeight;
-				light[i]->Width = areaLightWidth;
-				if (lightTypeToggle == 1) { light[i]->setPointLight(); }
-				else if (lightTypeToggle == 2) { light[i]->setSpotLight(); }
-				else if (lightTypeToggle = 3){ light[i]->setAreaLight(); }
-			}
-		}
-	}
-
-
-}
-
-//--------------------------------------------------------------
-//draw all scene objects and lights
-void ofApp::draw(){
-
-	ofSetDepthTest(true);
-
-	theCam->begin();
-
-	//draw all scene objects
-	for (int i = 0; i < scene.size(); i++) {
-		ofColor color = scene[i]->diffuseColor;
-		ofSetColor(color);
-		scene[i]->draw();
-	}
-
-	//draw all lights
-	for (int i = 0; i < light.size(); i++) {
-		light[i]->draw();
-	}
-
-	//draw all aim points
-	for (int i = 0; i < aimPoint.size(); i++) {
-		if (light[i]->isAreaLight || light[i]->isSpotLight) {
-			aimPoint[i]->draw();
-		}
-	}
-
-	//renderCam.view.draw();
-
-
-	theCam->end();
-
-
-	if (!bHide) {
-		ofSetDepthTest(false);
-		gui.draw();
-	}
-
-	//draw render
-	if (drawImage) {
-		ofSetColor(ofColor::white);
-		image.draw(0, 0);
-	}
-}
-
-//--------------------------------------------------------------
-void ofApp::keyPressed(int key){
-	switch (key) {
-	case OF_KEY_F1:
-		theCam = &mainCam;
-		break;
-	case OF_KEY_F2:
-		theCam = &sideCam;
-		break;
-	case OF_KEY_F3:
-		theCam = &previewCam;
-		break;
-	case 'r':
-		drawImage = !drawImage;
-		break;
-	case 't':
-		rayTrace();
-		break;
-	case 'h':
-		bHide = !bHide;
-		break;
-	case 'c':
-		if (mainCam.getMouseInputEnabled()) mainCam.disableMouseInput();
-		else mainCam.enableMouseInput();
-		break;
-	case 'j':
-		createSphere();
-		break;
-	case 'd':
-		deleteSphere();
-		break;
-	case 'l':
-		createLight();
-		break;
-	case 'k':
-		deleteLight();
-		break;
-	default:
-		break;
-	}
-}
-
-//--------------------------------------------------------------
-void ofApp::keyReleased(int key){
-
-}
-
-//--------------------------------------------------------------
-void ofApp::mouseMoved(int x, int y ){
-
-}
-
-//--------------------------------------------------------------
-//allow for moving of scene objects and lights
-//
-void ofApp::mouseDragged(int x, int y, int button){
-	if (objSelected() && bDrag) {
-		glm::vec3 point;
-		mouseToDragPlane(x, y, point);
-		selected[0]->position += (point - lastPoint);
-		lastPoint = point;
-	}
-
-}
-
-//--------------------------------------------------------------
-//test for mouse intersection
-//
-void ofApp::mousePressed(int x, int y, int button){
-	// if moving camera, don't allow mouse interaction
-	//
-	if (mainCam.getMouseInputEnabled()) return;
-
-	// clear selection list
-	//
-	selected.clear();
-
-	//reset all isSelected variables
-	//
-	for (int i = 0; i < scene.size(); i++) {
-		scene[i]->isSelected = false;
-	}
-
-	for (int i = 0; i < light.size(); i++) {
-		light[i]->isSelected = false;
-	}
-
-	for (int i = 0; i < aimPoint.size(); i++) {
-		aimPoint[i]->isSelected = false;
-	}
-
-
-	//
-	// test if something selected
-	//
-	vector<SceneObject*> hits;
-
-	glm::vec3 p = theCam->screenToWorld(glm::vec3(x, y, 0));
-	glm::vec3 d = p - theCam->getPosition();
-	glm::vec3 dn = glm::normalize(d);
-
-	// check for selection of scene objects
-	//
-	for (int i = 0; i < scene.size(); i++) {
-
-		glm::vec3 point, norm;
-
-		//  We hit an object
-		//
-		if (scene[i]->isSelectable && scene[i]->intersect(Ray(p, dn), point, norm)) {
-			hits.push_back(scene[i]);
-		}
-	}
-
-	// check for selection of light objects
-	//
-	for (int i = 0; i < light.size(); i++) {
-
-		glm::vec3 point, norm;
-
-		//  We hit an object
-		//
-		if (light[i]->isSelectable && light[i]->intersect(Ray(p, dn), point, norm)) {
-			hits.push_back(light[i]);
-		}
-	}
-
-	
-	// check for selection of light aim points
-	//
-	for (int i = 0; i < aimPoint.size(); i++) {
-
-		glm::vec3 point, norm;
-
-		//  We hit an object
-		//
-		if (aimPoint[i]->intersect(Ray(p, dn), point, norm)) {
-			aimPoint[i]->isSelected = true;
-			hits.push_back(aimPoint[i]);
-		}
-	}
-	
-
-
-	// if we selected more than one, pick nearest
-	//
-	SceneObject* selectedObj = NULL;
-	if (hits.size() > 0) {
-		selectedObj = hits[0];
-		float nearestDist = std::numeric_limits<float>::infinity();
-		for (int n = 0; n < hits.size(); n++) {
-			float dist = glm::length(hits[n]->position - theCam->getPosition());
-			if (dist < nearestDist) {
-				nearestDist = dist;
-				selectedObj = hits[n];
-			}
-		}
-	}
-
-	//handle object selection
-	//
-	if (selectedObj) {
-		selected.push_back(selectedObj);
-		selectedObj->isSelected = true;
-
-
-		//reset gui variables to selected object parameters
-		//
-		float r = selectedObj->diffuseColor.r;
-		float g = selectedObj->diffuseColor.g;
-		float b = selectedObj->diffuseColor.b;
-		color = glm::vec3(r,g,b);
-		scale = selectedObj->radius;
-		intensity = selectedObj->intensity;
-		power = selectedObj->power;
-		spotLightAngle = selectedObj->coneAngleDeg;
-		areaLightWidth = selectedObj->Width;
-
-		if (selectedObj->isSpotLight) {
-			lightTypeToggle = 2;
-		}
-		else if (selectedObj->isAreaLight) {
-			lightTypeToggle = 3;
-		}
-		else {
-			lightTypeToggle = 1;
-		}
-
-		bDrag = true;
-		mouseToDragPlane(x, y, lastPoint);
 	}
 	else {
-		selected.clear();
-	}
-}
+		if (!mainCam.getMouseInputEnabled()) {
+			if (angle[lightIndex] > 5) angle[lightIndex] -= .5;
+			areaLights[lightIndex]->Height -= .5;
 
-//--------------------------------------------------------------
-void ofApp::mouseReleased(int x, int y, int button){
-	bDrag = false;
-}
-
-//--------------------------------------------------------------
-void ofApp::mouseEntered(int x, int y){
-
-}
-
-//--------------------------------------------------------------
-void ofApp::mouseExited(int x, int y){
-
-}
-
-//--------------------------------------------------------------
-void ofApp::windowResized(int w, int h){
-
-}
-
-//--------------------------------------------------------------
-void ofApp::gotMessage(ofMessage msg){
-
-}
-
-//--------------------------------------------------------------
-void ofApp::dragEvent(ofDragInfo dragInfo){ 
-
-}
-
-//--------------------------------------------------------------
-//  This projects the mouse point in screen space (x, y) to a 3D point on a plane
-//  normal to the view axis of the camera passing through the point of the selected object.
-//  If no object selected, the plane passing through the world origin is used.
-//
-bool ofApp::mouseToDragPlane(int x, int y, glm::vec3& point) {
-	glm::vec3 p = theCam->screenToWorld(glm::vec3(x, y, 0));
-	glm::vec3 d = p - theCam->getPosition();
-	glm::vec3 dn = glm::normalize(d);
-
-	float dist;
-	glm::vec3 pos;
-	if (objSelected()) {
-		pos = selected[0]->position;
-	}
-	else pos = glm::vec3(0, 0, 0);
-	if (glm::intersectRayPlane(p, dn, pos, glm::normalize(theCam->getZAxis()), dist)) {
-		point = p + dn * dist;
-		return true;
-	}
-	return false;
-}
-
-//--------------------------------------------------------------
-//creates an new sphere and pushes it onto scene vector
-//
-void ofApp::createSphere() {
-
-	scene.push_back(new Sphere(glm::vec3(0, 0, 0), sphereRadius, ofColor::blue));
-
-}
-
-
-//--------------------------------------------------------------
-//deletes selected sphere from scene
-//
-void ofApp::deleteSphere() {
-	if (objSelected() && selected[0]) {
-		for (int i = 0; i < scene.size(); i++)
-		{
-			if (scene[i] == selected[0]) {
-				scene.erase(scene.begin() + i);
-			}
 		}
-		selected.clear();
 	}
 }
 
 //--------------------------------------------------------------
-//creates an new light and pushes it onto scene vector
-//
-void ofApp::createLight() {
-	aimPoint.push_back(new Sphere(glm::vec3(3, -2, 0), aimPointRadius));
-	light.push_back(new Light(glm::vec3(1, 1, 1), aimPoint[numofLights]->position, .2, 10, 5));		//top left light
-	numofLights++;
-}
+void ofApp::update() {
 
-
-//--------------------------------------------------------------
-//deletes selected light from scene
-//
-void ofApp::deleteLight() {
-	if (objSelected() && selected[0]) {
-		for (int i = 0; i < light.size(); i++)
-		{
-			if (light[i] == selected[0]) {
-				light.erase(light.begin() + i);
-				aimPoint.erase(aimPoint.begin() + i);
-				numofLights--;
-			}
-		}
-		selected.clear();
-	}
 }
 
 //--------------------------------------------------------------
-//ray tracing algorithm
-//loops through all pixels in image
-//shades each pixel with phong shading
-//saves image to disk
-//
 void ofApp::rayTrace() {
 
 	cout << "drawing..." << endl;
@@ -552,12 +144,8 @@ void ofApp::rayTrace() {
 				}
 			}
 			if (!background) {
-				//get diffuse and specular
-				ofColor diffuse = scene[closestIndex]->getDiffuse(r.evalPoint(close));
-				ofColor specular = scene[closestIndex]->getSpecular(r.evalPoint(close));
-
 				//add shading contribution
-				closest = shade(r.evalPoint(close), scene[closestIndex]->getNormal(glm::vec3(0, 0, 0)), diffuse, close, specular, power, r);
+				closest = shade(r.evalPoint(close), scene[closestIndex]->getNormal(glm::vec3(0, 0, 0)), scene[closestIndex]->diffuseColor, close, ofColor::lightGray, power, r);
 				image.setColor(i, j, closest);
 			}
 			else if (background) {
@@ -572,11 +160,148 @@ void ofApp::rayTrace() {
 	cout << "render saved" << endl;
 }
 
+
+//--------------------------------------------------------------
+//calculates lambert shading for point lights
+//returns shaded color
+ofColor ofApp::lambert(const glm::vec3& p, const glm::vec3& norm, const ofColor diffuse, float distance, Ray r, Light light) {
+	ofColor lambert = ofColor(0, 0, 0);
+
+	float distance1 = glm::distance(light.position, p);
+
+
+	glm::vec3 l = glm::normalize(light.position - p);
+	lambert += diffuse * (light.intensity / distance1 * distance1) * (glm::max(zero, glm::dot(norm, l)));
+	return lambert;
+}
+
+
+//--------------------------------------------------------------
+//calculates point light shading including:
+// lambert
+// phong
+//returns shaded color
+ofColor ofApp::phong(const glm::vec3& p, const glm::vec3& norm, const ofColor diffuse, const ofColor specular, float power, float distance, Ray r, Light light) {
+	ofColor phong = ofColor(0, 0, 0);
+	glm::vec3 h = glm::vec3(0);
+	float distance1 = glm::distance(light.position, p);
+
+	glm::vec3 l = glm::normalize(light.position - p);
+	glm::vec3 v = glm::normalize(renderCam.position - p);
+	h = glm::normalize(l + v);
+
+
+
+	phong += (lambert(p, norm, diffuse, distance1, r, light)) + (specular * (light.intensity / distance1 * distance1) * glm::pow(glm::max(zero, glm::dot(norm, h)), power));
+	return phong;
+}
+
+//--------------------------------------------------------------
+//calculates lambert shading from spot lights
+//returns shaded color
+ofColor ofApp::areaLightLambert(const glm::vec3& p, const glm::vec3& norm, const ofColor diffuse, float distance, Ray r, areaLight light) {
+	ofColor lambert = ofColor(0, 0, 0);
+	glm::vec3 point1, point2, point3, point4, normal;
+
+	float distance1 = glm::distance(light.position, p);
+
+
+	//Ray s = Ray(renderCam.position, glm::normalize(p - renderCam.position));
+
+
+
+	//change algorithm here
+	//
+	//
+	// project ray from point to rectangle plane
+	// if intersection is right angle, shade
+	// 
+	// 
+	//Ray s = Ray(light.topRightCorner(), glm::normalize(p - light.topRightCorner()));
+
+	//ofDrawLine(topLeftCorner(), glm::vec3(aimPoint.x - Height, aimPoint.y + Height, aimPoint.z));
+	//ofDrawLine(bottomRightCorner(), glm::vec3(aimPoint.x + Height, aimPoint.y - Height, aimPoint.z));
+	//ofDrawLine(bottomLeftCorner(), glm::vec3(aimPoint.x - Height, aimPoint.y - Height, aimPoint.z));
+
+
+
+	Ray tr = Ray(light.topRightCorner(), glm::vec3(light.aimPoint.x + light.Height, light.aimPoint.y + light.Height, light.aimPoint.z) - light.topRightCorner());
+	Ray tl = Ray(light.topLeftCorner(), glm::vec3(light.aimPoint.x - light.Height, light.aimPoint.y + light.Height, light.aimPoint.z) - light.topLeftCorner());
+	Ray br = Ray(light.bottomRightCorner(), glm::vec3(light.aimPoint.x + light.Height, light.aimPoint.y - light.Height, light.aimPoint.z) - light.bottomRightCorner());
+	Ray bl = Ray(light.bottomLeftCorner(), glm::vec3(light.aimPoint.x - light.Height, light.aimPoint.y - light.Height, light.aimPoint.z) - light.bottomLeftCorner());
+
+	scene[0]->intersect(tr, point1, normal);
+	scene[0]->intersect(tl, point2, normal);
+	scene[0]->intersect(br, point3, normal);
+	scene[0]->intersect(bl, point4, normal);
+
+
+	//test if p is inside 4 point box
+	float width = glm::distance(point1, point2);
+	float recArea = width * width;
+	//float recArea = light.Height * light.Height;
+
+
+	//triangle one
+	float a = glm::distance(point1, point2);
+	float b = glm::distance(p, point2);
+	float c = glm::distance(point1, p);
+	float s = (a + b + c)/2;
+	float triArea1 = glm::sqrt(s* (s - a) * (s - b) * (s - c));
+
+	//triangle two
+	a = glm::distance(point2, point3);
+	b = glm::distance(p, point2);
+	c = glm::distance(point3, p);
+	s = (a + b + c)/2;
+	float triArea2 = glm::sqrt(s * (s - a) * (s - b) * (s - c));
+
+	//triangle three
+	a = glm::distance(point3, point4);
+	b = glm::distance(p, point3);
+	c = glm::distance(point4, p);
+	s = (a + b + c)/2;
+	float triArea3 = glm::sqrt(s * (s - a) * (s - b) * (s - c));
+
+	//triangle four
+	a = glm::distance(point1, point4);
+	b = glm::distance(p, point1);
+	c = glm::distance(point4, p);
+	s = (a + b + c)/2;
+	float triArea4 = glm::sqrt(s * (s - a) * (s - b) * (s - c));
+
+
+
+	float triAreaSum = triArea1 + triArea2 + triArea3 + triArea4;
+
+	//float dis = glm::distance(light.aimPoint, p);
+
+	
+
+
+
+
+
+	/*
+	if (triAreaSum <= recArea) {		//if p is inside spot light illumination area
+		glm::vec3 l = glm::normalize(light.position - p);
+		lambert += diffuse * (light.intensity / distance1 * distance1) * (glm::max(zero, glm::dot(norm, l)));
+	}
+	*/
+
+	if ((0<glm::dot(p - point1, point2 - point1) < glm::dot(point2 - point1, point2 - point1)) || ( 0< glm::dot(p - point1, point3 - point1) < glm::dot(point3 - point1, point3 - point1 ))) {		//if p is inside spot light illumination area
+		glm::vec3 l = glm::normalize(light.position - p);
+		lambert += diffuse * (light.intensity / distance1 * distance1) * (glm::max(zero, glm::dot(norm, l)));
+	}
+
+	return lambert;
+}
+
+
 //--------------------------------------------------------------
 //adds shading contribution
 //calculates shadows
 //returns shaded color
-//
 ofColor ofApp::shade(const glm::vec3& p, const glm::vec3& norm, const ofColor diffuse, float distance, const ofColor specular, float power, Ray r) {
 	ofColor shaded = (0, 0, 0);
 	glm::vec3 p1 = p;
@@ -587,278 +312,258 @@ ofColor ofApp::shade(const glm::vec3& p, const glm::vec3& norm, const ofColor di
 
 		//test for shadows
 		if (closestIndex < 2) {								//if the closest object is one of the planes
+			if (scene[0]->intersect(r, p1, glm::vec3(0, 1, 0))) {													//check if current point intersected with ground plane
 
-			for (int k = 0; k < 2; k++) {
-				if (scene[k]->intersect(r, p1, glm::vec3(0, 1, 0))) {													//check if current point intersected with ground plane
+				Ray shadowRay = Ray(scene[0]->getIntersectionPoint(), light[i]->position - scene[0]->getIntersectionPoint());
 
-					Ray shadowRay = Ray(scene[k]->getIntersectionPoint(), light[i]->position - scene[k]->getIntersectionPoint());
-
-					//check all sphere objects
-					for (int j = 2; j < scene.size(); j++) {
-						if (scene[j]->intersect(shadowRay, p1, scene[j]->getNormal(p1))) {
-							blocked = true;
-						}
+				//check all sphere objects
+				for (int j = 2; j < scene.size(); j++) {
+					if (scene[j]->intersect(shadowRay, p1, scene[j]->getNormal(p1))) {
+						blocked = true;
 					}
 				}
 			}
 		}
 		if (!blocked) {
-			//add shading contribution for current light
-			//
-			if (light[i]->isSpotLight) {
-				shaded = spotLightPhong(p, norm, diffuse, specular, light[i]->power, distance, r, *light[i]);
-			}
-			else if (light[i]->isAreaLight) {
-				shaded = areaLightPhong(p, norm, diffuse, specular, light[i]->power, distance, r, *light[i]);
-			}
-			else {
-				shaded += phong(p, norm, diffuse, specular, light[i]->power, distance, r, *light[i]);
-			}
+			//point light shading
+			shaded += phong(p, norm, diffuse, specular, power, distance, r, *light[i]);
 		}
 	}
+
+	for (int i = 0; i < areaLights.size(); i++) {
+		blocked = false;
+
+		//test for shadows
+		if (scene[0]->intersect(r, p1, glm::vec3(0, 1, 0))) {													//check if current point intersected with ground plane
+			Ray shadowRay = Ray(scene[0]->getIntersectionPoint(), areaLights[i]->position - scene[0]->getIntersectionPoint());
+
+			//check all sphere objects
+			for (int j = 2; j < scene.size(); j++) {
+				if (scene[j]->intersect(shadowRay, p1, scene[j]->getNormal(p1))) {
+					blocked = true;
+				}
+			}
+		}
+		if (!blocked) {
+			//area light shading
+			shaded += areaLightLambert(p, norm, diffuse, distance, r, *areaLights[i]);
+
+		}
+	}
+
 	return shaded;
 }
-
 //--------------------------------------------------------------
-//calculates all shading for point lights including:
-// lambert
-// phong
-// ambient
-//returns shaded color
-//
-ofColor ofApp::phong(const glm::vec3& p, const glm::vec3& norm, const ofColor diffuse, const ofColor specular, float power, float distance, Ray r, Light light) {
-	ofColor phong = ofColor(0, 0, 0);
-	glm::vec3 h = glm::vec3(0);
+void ofApp::draw() {
 
-	glm::vec3 l = glm::normalize(light.position - p);
-	glm::vec3 v = glm::normalize(renderCam.position - p);
-	h = glm::normalize(l + v);
+	ofSetDepthTest(true);
 
-	float distance1 = glm::distance(light.position, p);
+	theCam->begin();
+
+	scene.clear();
+
+	scene.push_back(new Plane(glm::vec3(0, -5, 0), glm::vec3(0, 1, 0), ofColor::tan, 600, 400));				//ground plane
+
+	scene.push_back(new Plane(glm::vec3(0, 0, -10), glm::vec3(0, 0, 1), ofColor::darkGrey, 600, 400));				//wall plane
+
+	scene.push_back(new Sphere(glm::vec3(0, 1, -2), 1, ofColor::purple));											//purple sphere
+
+	scene.push_back(new Sphere(glm::vec3(-1, 0, 1), 1, ofColor::blue));												//blue sphere
+
+	scene.push_back(new Sphere(glm::vec3(.5, 0, 0), 1, ofColor::lightPink));											//pink sphere
 
 
-	phong += (ambient(diffuse)) + (lambert(p, norm, diffuse, distance1, r, light)) + (specular * (light.intensity / distance1 * distance1) * glm::pow(glm::max(zero, glm::dot(norm, h)), power));
+	light.clear();
 
-	return phong;
+	//light.push_back(new Light(glm::vec3(100, 150, 150), .2));			//top right light
+
+	areaLights.clear();
+
+	for (int i = 0; i < aimPoint.size(); i++) {
+		areaLights.push_back(new areaLight(areaLightPos[i], aimPoint[i], 2, angle[i]));
+	}
+
+	//draw all scene objects
+	for (int i = 0; i < scene.size(); i++) {
+		ofColor color = scene[i]->diffuseColor;
+		ofSetColor(color);
+		scene[i]->draw();
+	}
+
+
+	//draw all lights
+	for (int i = 0; i < light.size(); i++) {
+		light[i]->setIntensity(intensity);
+		light[i]->draw();
+	}
+
+	//draw all spotlights
+	for (int i = 0; i < areaLights.size(); i++) {
+		areaLights[i]->setIntensity(areaLightIntensity);
+		areaLights[i]->draw();
+	}
+
+	ofSetColor(ofColor::red);
+	ofFill();
+	renderCam.view.draw();
+
+
+
+	theCam->end();
+
+
+	if (!bHide) {
+		ofSetDepthTest(false);
+		gui.draw();
+	}
+
+	//draw render
+	if (drawImage) {
+		ofSetColor(ofColor::white);
+		image.draw(0, 0);
+	}
+
+
 }
 
 //--------------------------------------------------------------
-//calculates lambert shading for point lights
-//returns shaded color
-//
-ofColor ofApp::lambert(const glm::vec3& p, const glm::vec3& norm, const ofColor diffuse, float distance, Ray r, Light light) {
-	ofColor lambert = ofColor(0, 0, 0);
-	float distance1 = glm::distance(light.position, p);
-
-	glm::vec3 l = glm::normalize(light.position - p);
-	lambert += diffuse * (light.intensity / distance1 * distance1) * (glm::max(zero, glm::dot(norm, l)));
-
-	return lambert;
+void ofApp::keyPressed(int key) {
+	switch (key) {
+	case OF_KEY_F1:
+		theCam = &mainCam;
+		break;
+	case OF_KEY_F2:
+		theCam = &previewCam;
+		break;
+	case 'd':
+		drawImage = !drawImage;
+		if (theCam == &imageCam)  theCam = &mainCam;
+		else  theCam = &imageCam;
+		break;
+	case 't':
+		rayTrace();
+		break;
+	case 'h':
+		bHide = !bHide;
+		break;
+	case OF_KEY_UP:
+		if (lightSelect) updateAngle(true);
+		break;
+	case OF_KEY_DOWN:
+		if (lightSelect) updateAngle(false);
+		break;
+	case 'c':
+		if (mainCam.getMouseInputEnabled()) mainCam.disableMouseInput();
+		else mainCam.enableMouseInput();
+		break;
+	default:
+		break;
+	}
 }
 
 //--------------------------------------------------------------
-//calculates all shading for spot lights including:
-// lambert
-// phong
-//returns shaded color
-//
-ofColor ofApp::spotLightPhong(const glm::vec3& p, const glm::vec3& norm, const ofColor diffuse, const ofColor specular, float power, float distance, Ray r, Light light) {
-	ofColor phong = ofColor(0, 0, 0);
-	glm::vec3 h = glm::vec3(0);
+void ofApp::keyReleased(int key) {
 
-	glm::vec3 l = glm::normalize(light.position - p);
-	glm::vec3 v = glm::normalize(renderCam.position - p);
-	h = glm::normalize(l + v);
-
-	float distance1 = glm::distance(light.position, p);
-
-
-	phong += (spotLightLambert(p, norm, diffuse, distance1, r, light)) + (specular * (light.intensity / distance1 * distance1) * glm::pow(glm::max(zero, glm::dot(norm, h)), power));
-
-	return phong;
 }
 
 //--------------------------------------------------------------
-//calculates lambert shading for spot lights
-//returns shaded color
-//
-ofColor ofApp::spotLightLambert(const glm::vec3& p, const glm::vec3& norm, const ofColor diffuse, float distance, Ray r, Light light) {
-	ofColor lambert = ofColor(0, 0, 0);
+void ofApp::mouseMoved(int x, int y) {
+
+}
+
+//--------------------------------------------------------------
+void ofApp::mouseDragged(int x, int y, int button) {
+	if (!mainCam.getMouseInputEnabled()) {
+
+		//moving aim point
+		//
+		if (aimPointDrag) {
+			glm::vec3 screen3dpt = theCam->screenToWorld(glm::vec3(x, y, 0));
+			glm::vec3 rayOrigin = theCam->getPosition();
+			glm::vec3 rayDir = glm::normalize(screen3dpt - rayOrigin);
+			r = Ray(rayOrigin, rayDir);
+			p.intersect(r, glm::vec3(0), glm::vec3(0));							//move along a plane parellel to the camera view
+
+			aimPoint[lightIndex] = p.getIntersectionPoint();
+
+		}
+
+		//moving spot light position
+		//
+		else if (lightDrag) {
+			glm::vec3 screen3dpt = theCam->screenToWorld(glm::vec3(x, y, 0));
+			glm::vec3 rayOrigin = theCam->getPosition();
+			glm::vec3 rayDir = glm::normalize(screen3dpt - rayOrigin);
+			r = Ray(rayOrigin, rayDir);
+			p.intersect(r, glm::vec3(0), glm::vec3(0));						//move along a plane parellel to the camera view
+
+			areaLightPos[lightIndex] = p.getIntersectionPoint();
+		}
+	}
+}
+
+//--------------------------------------------------------------
+void ofApp::mousePressed(int x, int y, int button) {
+	glm::vec3 screen3dpt = theCam->screenToWorld(glm::vec3(x, y, 0));
+	glm::vec3 rayOrigin = theCam->getPosition();
+	glm::vec3 rayDir = glm::normalize(screen3dpt - rayOrigin);
+	aimPointSelect = false;
+	lightSelect = false;
+
+
+	r = Ray(rayOrigin, rayDir);
 	glm::vec3 point, normal;
+	for (int i = 0; i < areaLights.size(); i++) {
 
-	float distance1 = glm::distance(light.position, p);
+		//check if mouse intersected with aimpoint
+		aimPointSelect = glm::intersectRaySphere(r.p, r.d, areaLights[i]->aimPoint, areaLights[i]->Height / 10, point, normal);
+		if (aimPointSelect) {
+			planeNormal = glm::normalize(mainCam.getPosition() - screen3dpt);
+			p = Plane(aimPoint[i], planeNormal, ofColor::grey, 20, 20);
+			lightIndex = i;
+			aimPointDrag = true;
+		}
 
-
-	Ray s = Ray(renderCam.position, glm::normalize(p - renderCam.position));
-
-	//calculate angle between cone aim and current point
-	glm::vec3 coneAim = glm::normalize(light.position - light.aimPoint);
-	glm::vec3 pointVec = glm::normalize(light.position - p);
-	float theta = glm::dot(coneAim, pointVec);
-	float angle = glm::acos(theta);
-	//angle = glm::degrees(angle);
-
-	if (angle < light.coneAngle/2) {		//illuminate if p is inside spot light illumination area
-		glm::vec3 l = glm::normalize(light.position - p);
-		lambert += diffuse * (light.intensity / distance1 * distance1) * (glm::max(zero, glm::dot(norm, l)));
-	}
-
-	return lambert;
-}
-
-//--------------------------------------------------------------
-//calculates phong shading for area lights
-// lambert
-// phong
-//returns shaded color
-//
-ofColor ofApp::areaLightPhong(const glm::vec3& p, const glm::vec3& norm, const ofColor diffuse, const ofColor specular, float power, float distance, Ray r, Light light) {
-	ofColor phong = ofColor(0, 0, 0);
-	glm::vec3 h = glm::vec3(0);
-
-	glm::vec3 l = glm::normalize(light.position - p);
-	glm::vec3 v = glm::normalize(renderCam.position - p);
-	h = glm::normalize(l + v);
-
-	float distance1 = glm::distance(light.position, p);
-
-
-	phong += (areaLightLambert(p, norm, diffuse, distance1, r, light)) + (specular * (light.intensity / distance1 * distance1) * glm::pow(glm::max(zero, glm::dot(norm, h)), power));
-
-	return phong;
-}
-
-//--------------------------------------------------------------
-//--------------------------------------------------------------
-//--------------------------------------------------------------
-//--------------------------------------------------------------
-//--------------------------------------------------------------
-//--------------------------------------------------------------
-//--------------------------------------------------------------
-//--------------------------------------------------------------
-// 
-//calculates lambert shading for area lights
-//returns shaded color
-//
-ofColor ofApp::areaLightLambert(const glm::vec3& p, const glm::vec3& norm, const ofColor diffuse, float distance, Ray r, Light light) {
-	ofColor lambert = ofColor(0, 0, 0);
-	glm::vec3 point, normal;
-
-	float distance1 = glm::distance(light.position, p);
-
-
-
-	//change algorithm here
-	//
-	// 
-	// 
-	// 
-	// 
-	// 
-	// 
-	//
-
-
-
-	//Ray s = Ray(renderCam.position, glm::normalize(p - renderCam.position));
-
-	float dis = glm::distance(light.aimPoint, p);
-
-	if (dis < light.Width) {		//if p is inside spot light illumination area
-		glm::vec3 l = glm::normalize(light.position - p);
-		lambert += diffuse * (light.intensity / distance1 * distance1) * (glm::max(zero, glm::dot(norm, l)));
-	}
-
-
-
-	return lambert;
-}
-
-
-// --------------------------------------------------------------
-//calculates ambient shading
-//returns shaded color
-ofColor ofApp::ambient(const ofColor diffuse) {
-	ofColor ambient = ofColor(0, 0, 0);
-
-	ambient = .05 * diffuse;
-	//ambient = .00 * diffuse;
-
-	return ambient;
-}
-
-//--------------------------------------------------------------
-//converts the current point on the plane to a pixel on texture map
-//returns the color from the texture
-ofColor Plane::textureMap(glm::vec3 p) {
-	ofColor tex = ofColor(0);
-	//ground plane
-	if (normal == glm::vec3(0, 1, 0)) {
-		float x = getIntersectionPoint().x - position.x;
-		float y = getIntersectionPoint().z - position.z;
-
-		float u = ofMap(x, position.x - getWidth() / 2, position.x + getWidth() / 2, 0, floortiles);
-		float v = ofMap(y, position.z - getHeight() / 2, position.z + getHeight() / 2, 0, floortiles);
-
-		int i = u * image.getWidth() - .5;
-		int j = v * image.getHeight() - .5;
-
-		if (i > 0 && j > 0) {
-			tex = image.getColor(fmod(i, image.getWidth()), fmod(j, image.getHeight()));
+		//check if mouse intersected with spot light
+		lightSelect = glm::intersectRaySphere(r.p, r.d, areaLights[i]->position, areaLights[i]->Height / 5, point, normal);
+		if (lightSelect && !aimPointSelect) {
+			planeNormal = glm::normalize(mainCam.getPosition() - areaLightPos[i]);
+			p = Plane(areaLightPos[i], planeNormal, ofColor::grey, 20, 20);
+			lightIndex = i;
+			lightDrag = true;
 		}
 	}
-	//wall plane
-	else if (normal == glm::vec3(0, 0, 1)) {
-		float x = getIntersectionPoint().x - position.x;
-		float y = getIntersectionPoint().y - position.y;
-
-		float u = ofMap(x, position.x - getWidth() / 2, position.x + getWidth() / 2, 0, walltiles);
-		float v = ofMap(y, position.y - getHeight() / 2, position.y + getHeight() / 2, 0, walltiles);
-
-		int i = u * image.getWidth() - .5;
-		int j = v * image.getHeight() - .5;
-
-		if (i > 0 && j > 0) {
-			tex = image.getColor(fmod(i, image.getWidth()), fmod(j, image.getHeight()));
-		}
-	}
-	return tex;
 }
 
 //--------------------------------------------------------------
-//converts the point to a pixel on the texture specular map
-//returns the specular color from the texture
-ofColor Plane::specularTextureMap(glm::vec3 p) {
-	ofColor tex = ofColor(0);
-	//ground plane
-	if (normal == glm::vec3(0, 1, 0)) {
-		float x = getIntersectionPoint().x - position.x;
-		float y = getIntersectionPoint().z - position.z;
+void ofApp::mouseReleased(int x, int y, int button) {
+	lightDrag = false;
+	aimPointDrag = false;
+	aimPointSelect = false;
+	lightSelect = false;
+}
 
-		float u = ofMap(x, position.x - getWidth() / 2, position.x + getWidth() / 2, 0, floortiles);
-		float v = ofMap(y, position.z - getHeight() / 2, position.z + getHeight() / 2, 0, floortiles);
+//--------------------------------------------------------------
+void ofApp::mouseEntered(int x, int y) {
 
-		int i = u * imageSpec.getWidth() - .5;
-		int j = v * imageSpec.getHeight() - .5;
+}
 
-		if (i > 0 && j > 0) {
-			tex = imageSpec.getColor(fmod(i, imageSpec.getWidth()), fmod(j, imageSpec.getHeight()));
-		}
-	}
-	//wall plane
-	else if (normal == glm::vec3(0, 0, 1)) {
-		float x = getIntersectionPoint().x - position.x;
-		float y = getIntersectionPoint().y - position.y;
+//--------------------------------------------------------------
+void ofApp::mouseExited(int x, int y) {
 
-		float u = ofMap(x, position.x - getWidth() / 2, position.x + getWidth() / 2, 0, walltiles);
-		float v = ofMap(y, position.y - getHeight() / 2, position.y + getHeight() / 2, 0, walltiles);
+}
 
-		int i = u * imageSpec.getWidth() - .5;
-		int j = v * imageSpec.getHeight() - .5;
+//--------------------------------------------------------------
+void ofApp::windowResized(int w, int h) {
 
-		if (i > 0 && j > 0) {
-			tex = imageSpec.getColor(fmod(i, imageSpec.getWidth()), fmod(j, imageSpec.getHeight()));
-		}
-	}
-	return tex;
+}
+
+//--------------------------------------------------------------
+void ofApp::gotMessage(ofMessage msg) {
+
+}
+
+//--------------------------------------------------------------
+void ofApp::dragEvent(ofDragInfo dragInfo) {
+
 }

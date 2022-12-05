@@ -1,5 +1,15 @@
-#pragma once
-
+//  These classes provide a simple render camera which can can return a ray starting from
+//  it's position to a (u, v) coordinate on the view plane.
+//
+//  The view plane is where we can locate our photorealistic image we are rendering.
+//  The field-of-view of the camera by moving it closer/further 
+//  from the view plane.  The viewplane can be also resized.  When ray tracing an image, the aspect
+//  ratio of the view plane should the be same as your image. So for example, the current view plane
+//  default size is ( 6.0 width by 4.0 height ).   A 1200x800 pixel image would have the same
+//  aspect ratio.
+//  
+//  (c) Troy Perez - 17 October 2022
+//
 #pragma once
 
 #include "ofMain.h"
@@ -12,6 +22,7 @@
 class Ray {
 public:
 	Ray(glm::vec3 p, glm::vec3 d) { this->p = p; this->d = d; }
+	Ray() {}
 	void draw(float t) { ofDrawLine(p, p + t * d); }
 
 	glm::vec3 evalPoint(float t) {
@@ -29,94 +40,38 @@ public:
 	virtual bool intersect(const Ray& ray, glm::vec3& point, glm::vec3& normal) { cout << "SceneObject::intersect" << endl; return false; }
 	virtual glm::vec3 getNormal(const glm::vec3& p) { return glm::vec3(0); }
 	virtual glm::vec3 getIntersectionPoint() { return glm::vec3(1); }
-	virtual void setImage(ofImage i) {}
-	virtual void setImageSpec(ofImage i) {}
-	virtual ofColor getDiffuse(glm::vec3 p) { return diffuseColor; }
-	virtual ofColor getSpecular(glm::vec3 p) { return specularColor; }
-	virtual bool aimPointIntersect(const Ray& ray, glm::vec3& point, glm::vec3& normal) { return false; }
+
 
 	// any data common to all scene objects goes here
 	glm::vec3 position = glm::vec3(0, 0, 0);
 	glm::vec3 intersectionPoint;
-	float radius = 0;
-	float intensity = 0;
-	float power = 0;
-	float coneAngle = 0;
-	float Width = 0;
-	float coneAngleDeg = 0;
-
 
 	// material properties (we will ultimately replace this with a Material class - TBD)
 	//
 	ofColor diffuseColor = ofColor::grey;    // default colors - can be changed.
 	ofColor specularColor = ofColor::lightGray;
-
-	ofImage image;
-
-	bool isSpotLight = false;
-	bool isAreaLight = false;
-
-	bool isSelectable = true;
-	bool isSelected = false;
-	bool hasTexture = false;
-	bool hasTextureSpecular = false;
-	
 };
 
 //  General purpose plane 
 //
 class Plane : public SceneObject {
 public:
-	Plane(glm::vec3 p, glm::vec3 n, ofColor diffuse,
-		float w, float h) {
+	Plane(glm::vec3 p, glm::vec3 n, ofColor diffuse = ofColor::darkOliveGreen,
+		float w = 20, float h = 20) {
 		position = p; normal = n;
 		width = w;
 		height = h;
 		diffuseColor = diffuse;
-		isSelectable = false;
 		if (normal == glm::vec3(0, 1, 0)) plane.rotateDeg(90, 1, 0, 0);
 	}
 	Plane() {
 		normal = glm::vec3(0, 1, 0);
 		plane.rotateDeg(90, 1, 0, 0);
-		isSelectable = false;
-
 	}
 	bool intersect(const Ray& ray, glm::vec3& point, glm::vec3& normal);
 	float sdf(const glm::vec3& p);
 	glm::vec3 getNormal(const glm::vec3& p) { return this->normal; }
 	glm::vec3 getIntersectionPoint() { return this->intersectionPoint; }
-	float getWidth() { return width; }
-	float getHeight() { return height; }
-	ofColor textureMap(glm::vec3 p);
-	ofColor specularTextureMap(glm::vec3 p);
-
-	ofColor getDiffuse(glm::vec3 p) {
-		if (hasTexture) {
-			return textureMap(p);
-		}
-		else {
-			return diffuseColor;
-		}
-	}
-
-	ofColor getSpecular(glm::vec3 p) {
-		if (hasTextureSpecular) {
-			return specularTextureMap(p);
-		}
-		else {
-			return specularColor;
-		}
-	}
-
-	void setImage(ofImage i) {
-		image = i;
-		hasTexture = true;
-	}
-	void setImageSpec(ofImage i) {
-		imageSpec = i;
-		hasTextureSpecular = true;
-	}
 	void setIntersectionPoint(const glm::vec3& p) { intersectionPoint = p; }
 	void draw() {
 		plane.setPosition(position);
@@ -126,24 +81,22 @@ public:
 		plane.draw();
 	}
 
+	// some convenience methods for returning the corners
+	//
+	glm::vec2 topLeft() { return glm::vec2(min.x, max.y); }
+	glm::vec2 topRight() { return max; }
+	glm::vec2 bottomLeft() { return min; }
+	glm::vec2 bottomRight() { return glm::vec2(max.x, min.y); }
 
 	ofPlanePrimitive plane;
 	glm::vec3 normal;
-	float width;
-	float height;
+	float width = 20;
+	float height = 20;
 	glm::vec3 intersectionPoint;
-	ofImage image;
-	ofImage imageSpec;
+	glm::vec2 min, max;
 
-	bool hasTexture = false;
-	bool hasTextureSpecular = false;
 
-	int floortiles = 1;
-	int walltiles = 1;
 };
-
-
-
 
 //  General purpose sphere  (assume parametric)
 //
@@ -158,130 +111,164 @@ public:
 		return intersect;
 	}
 	void draw() {
-		if (isSelected) {
-			ofNoFill();
-		}
-		else {
-			ofFill();
-		}
 		ofDrawSphere(position, radius);
 	}
-
-
-
-
 	void setNormal(const glm::vec3& p) { normal = p; }
 
 	glm::vec3 getNormal(const glm::vec3& p) { return glm::normalize(normal); }
 
-	ofColor getDiffuse(glm::vec3 p) { return diffuseColor; }
-
 	glm::vec3 normal;
 
+	float radius = 1.0;
 };
 
 
 class Light : public SceneObject {
 public:
-	Light(glm::vec3 p, glm::vec3 aimPos, float i, float angle, float width) { 
-		position = p; 
-		intensity = i; 
-		power = 100;
-		coneAngleDeg = angle;
-		coneAngle = tan(glm::radians(angle)) * coneHeight;
-		Width = width;
-		radius = .5;
-		aimPoint = aimPos;
-		planeHeight = width;
-		setPointLight();
-	}
+	Light(glm::vec3 p, float i) { position = p; intensity = i; }
 	Light() {}
-
-	void setPointLight() {
-		isSpotLight = false;
-		isAreaLight = false;
-	}
-
-	void setSpotLight() {
-		isSpotLight = true;
-		isAreaLight = false;
-	}
-
-	void setAreaLight() {
-		isSpotLight = false;
-		isAreaLight = true;
-	}
-
-
 	bool intersect(const Ray& ray, glm::vec3& point, glm::vec3& normal) {
-		if (isAreaLight) {
-			Plane p = Plane(position, glm::normalize(position - aimPoint), ofColor::grey, planeHeight, planeHeight);
-			return p.intersect(ray, point, normal);
-		}
-		else {
-			return (glm::intersectRaySphere(ray.p, ray.d, position, radius, point, normal));
-		}
+		return (glm::intersectRaySphere(ray.p, ray.d, position, radius, point, normal));
 	}
-
-	bool aimPointIntersect(const Ray& ray, glm::vec3& point, glm::vec3& normal) {
-		if (isSpotLight || isAreaLight) {
-			return (glm::intersectRaySphere(ray.p, ray.d, aimPoint, aimPointRadius, point, normal));
-		}
-		else {
-			return false;
-		}
-	}
-
 	void draw() {
 		ofSetColor(ofColor::gray);
-		if (isSelected) {
-			ofNoFill();
-		}
-		else {
-			ofFill();
-		}
-
-		if (isSpotLight) {
-			// draw a cone object oriented towards aim position using the lookAt transformation
-	// matrix.  The "up" vector is (0, 1, 0)
-	//
-			ofPushMatrix();
-			glm::mat4 m = glm::lookAt(position, aimPoint, glm::vec3(0, 1, 0));
-			ofMultMatrix(glm::inverse(m));
-			ofRotate(-90, 1, 0, 0);
-			ofDrawCone(coneAngle, 5);
-			ofPopMatrix();
-			ofDrawLine(position, aimPoint);
-
-		}
-		else if (isAreaLight) {
-			//draw rectangle
-			ofPushMatrix();
-			glm::mat4 m = glm::lookAt(position, aimPoint, glm::vec3(0, 1, 0));
-			ofMultMatrix(glm::inverse(m));
-			ofDrawRectangle(glm::vec3(-Width / 2, -Width / 2, 0), Width, Width);
-			ofPopMatrix();
-			ofDrawLine(position, aimPoint);
-		}
-		else {
-			ofDrawSphere(position, radius);
-		}
+		ofDrawSphere(position, radius);
 	}
-
 	void setIntensity(float i) {
 		intensity = i;
+	}
+	float radius = 1.5;
+	float intensity = 0.0;
+};
+
+class spotLight : public Light {
+public:
+	spotLight(glm::vec3 p, glm::vec3 aimPos, float i, float angle) {
+		position = p; intensity = i; aimPoint = aimPos; direction = p - aimPoint;
+		coneAngle = tan(glm::radians(angle)) * coneHeight;
+	}
+	spotLight() {}
+
+
+	void draw() {
+		//draw aimpoint sphere
+		ofSetColor(ofColor::lightGray);
+		ofDrawSphere(aimPoint, coneHeight / 10);
+
+		// draw a cone object oriented towards aim position using the lookAt transformation
+	// matrix.  The "up" vector is (0, 1, 0)
+	//
+		ofPushMatrix();
+		glm::mat4 m = glm::lookAt(position, aimPoint, glm::vec3(0, 1, 0));
+		ofMultMatrix(glm::inverse(m));
+		ofRotate(-90, 1, 0, 0);
+		ofSetColor(ofColor::lightGray);
+		ofDrawCone(coneAngle, coneHeight);
+		ofPopMatrix();
+		ofDrawLine(position, aimPoint);
+
 	}
 
 	glm::vec3 direction = glm::vec3(0);
 	glm::vec3 aimPoint = glm::vec3(0);
 
-
-	float aimPointRadius = .2;
-	float length = 10;
-	float coneHeight = 5;
-	int planeHeight;
-	
+	float coneAngle = 0;
+	float length = 20;
+	float coneHeight = 20;
 };
+
+
+class areaLight : public Light {
+public:
+	areaLight(glm::vec3 p, glm::vec3 aimPos, float i, float height) {
+		position = p; intensity = i; aimPoint = aimPos; direction = p - aimPoint;
+		Height = height;
+		a = Plane(glm::vec3(0), glm::normalize(position - aimPoint), ofColor::grey, Height, Height);
+	}
+	areaLight() {}
+
+
+	void draw() {
+		//draw aimpoint sphere
+		ofSetColor(ofColor::lightGray);
+		ofDrawSphere(aimPoint, Height / 10);
+
+		//draw rectangle
+		ofPushMatrix();
+		glm::mat4 m = glm::lookAt(position, aimPoint, glm::vec3(0, 1, 0));
+		ofMultMatrix(glm::inverse(m));
+		ofSetColor(ofColor::lightGray);
+		ofDrawRectangle(glm::vec3(-Height / 2, -Height / 2, 0), Height, Height);
+		//a.draw();
+		ofPopMatrix();
+		ofDrawLine(position, aimPoint);
+
+		//ofDrawLine(topRightCorner(), glm::vec3(aimPoint.x + Height, aimPoint.y + Height, aimPoint.z));
+		//ofDrawLine(topLeftCorner(), glm::vec3(aimPoint.x - Height, aimPoint.y + Height, aimPoint.z));
+		//ofDrawLine(bottomRightCorner(), glm::vec3(aimPoint.x + Height, aimPoint.y - Height, aimPoint.z));
+		//ofDrawLine(bottomLeftCorner(), glm::vec3(aimPoint.x - Height, aimPoint.y - Height, aimPoint.z));
+
+		// s = Ray(topRightCorner(), glm::vec3(aimPoint.x + Height, aimPoint.y + Height, aimPoint.z + Height) - topRightCorner());
+
+		//s.draw(100);
+
+
+		Ray tr = Ray(topRightCorner(), glm::vec3(aimPoint.x + Height, aimPoint.y + Height, aimPoint.z) - topRightCorner());
+		Ray tl = Ray(topLeftCorner(), glm::vec3(aimPoint.x - Height, aimPoint.y + Height, aimPoint.z) - topLeftCorner());
+		Ray br = Ray(bottomRightCorner(), glm::vec3(aimPoint.x + Height, aimPoint.y - Height, aimPoint.z) - bottomRightCorner());
+		Ray bl = Ray(bottomLeftCorner(), glm::vec3(aimPoint.x - Height, aimPoint.y - Height, aimPoint.z) - bottomLeftCorner());
+
+		tr.draw(50);
+		tl.draw(50);
+		br.draw(50);
+		bl.draw(50);
+
+		float dis = glm::distance(topRightCorner(), topLeftCorner());
+		//ofDrawLine(topRightCorner() - dis, aimPoint);
+
+		ofSetColor(ofColor::blue);
+
+		ofDrawSphere(position, 2);
+
+		
+	}
+
+	glm::vec3 topRightCorner() {
+		return glm::vec3(position.x + Height / 2, position.y + Height / 2, position.z + Height/2);
+	}
+
+	glm::vec3 topLeftCorner() {
+		return glm::vec3(position.x - Height / 2, position.y + Height / 2, position.z);
+	}
+
+	glm::vec3 bottomRightCorner() {
+		return glm::vec3(position.x + Height / 2, position.y - Height / 2, position.z);
+	}
+
+	glm::vec3 bottomLeftCorner() {
+		return glm::vec3(position.x - Height / 2, position.y - Height / 2, position.z);
+	}
+
+	glm::vec3 direction = glm::vec3(0);
+	glm::vec3 aimPoint = glm::vec3(0);
+
+	float coneAngle = 0;
+	float length = 20;
+	float Height = 20;
+
+	Plane a;
+};
+
+//  Mesh class (will complete later- this will be a refinement of Mesh from Project 1)
+//
+class Mesh : public SceneObject {
+	bool intersect(const Ray& ray, glm::vec3& point, glm::vec3& normal) { return false; }
+	void draw() { }
+
+};
+
+
+
 
 // view plane for render camera
 // 
@@ -304,7 +291,6 @@ public:
 	void draw() {
 		ofDrawRectangle(glm::vec3(min.x, min.y, position.z), width(), height());
 	}
-
 	float width() {
 		return (max.x - min.x);
 	}
@@ -312,12 +298,7 @@ public:
 		return (max.y - min.y);
 	}
 
-	// some convenience methods for returning the corners
-	//
-	glm::vec2 topLeft() { return glm::vec2(min.x, max.y); }
-	glm::vec2 topRight() { return max; }
-	glm::vec2 bottomLeft() { return min; }
-	glm::vec2 bottomRight() { return glm::vec2(max.x, min.y); }
+	
 
 	//  To define an infinite plane, we just need a point and normal.
 	//  The ViewPlane is a finite plane so we need to define the boundaries.
@@ -327,7 +308,6 @@ public:
 	//  in the scene, so it is easier to define the View rectangle in a local'
 	//  coordinate system.
 	//
-	glm::vec2 min, max;
 };
 
 
@@ -348,104 +328,95 @@ public:
 };
 
 
-class ofApp : public ofBaseApp{
 
-	public:
-		void setup();
-		void update();
-		void draw();
+class ofApp : public ofBaseApp {
 
-		void keyPressed(int key);
-		void keyReleased(int key);
-		void mouseMoved(int x, int y );
-		void mouseDragged(int x, int y, int button);
-		void mousePressed(int x, int y, int button);
-		void mouseReleased(int x, int y, int button);
-		void mouseEntered(int x, int y);
-		void mouseExited(int x, int y);
-		void windowResized(int w, int h);
-		void dragEvent(ofDragInfo dragInfo);
-		void gotMessage(ofMessage msg);
+public:
+	void setup();
+	void update();
+	void draw();
 
-		void createSphere();
-		void deleteSphere();
-		void createLight();
-		void deleteLight();
-		void rayTrace();
-		void drawGrid();
-		void drawAxis(glm::vec3 position);
-		bool mouseToDragPlane(int x, int y, glm::vec3& point);
-		bool objSelected() { return (selected.size() ? true : false); };
-		ofColor ambient(ofColor diffuse);
-		ofColor lambert(const glm::vec3& p, const glm::vec3& norm, const ofColor diffuse, float distance, Ray r, Light light);
-		ofColor phong(const glm::vec3& p, const glm::vec3& norm, const ofColor diffuse, const ofColor specular, float power, float distance, Ray r, Light light);
-		ofColor shade(const glm::vec3& p, const glm::vec3& norm, const ofColor diffuse, float distance, const ofColor specular, float power, Ray r);
-		ofColor spotLightPhong(const glm::vec3& p, const glm::vec3& norm, const ofColor diffuse, const ofColor specular, float power, float distance, Ray r, Light light);
-		ofColor spotLightLambert(const glm::vec3& p, const glm::vec3& norm, const ofColor diffuse, float distance, Ray r, Light light);
-		ofColor areaLightPhong(const glm::vec3& p, const glm::vec3& norm, const ofColor diffuse, const ofColor specular, float power, float distance, Ray r, Light light);
-		ofColor areaLightLambert(const glm::vec3& p, const glm::vec3& norm, const ofColor diffuse, float distance, Ray r, Light light);
+	void keyPressed(int key);
+	void keyReleased(int key);
+	void mouseMoved(int x, int y);
+	void mouseDragged(int x, int y, int button);
+	void mousePressed(int x, int y, int button);
+	void mouseReleased(int x, int y, int button);
+	void mouseEntered(int x, int y);
+	void mouseExited(int x, int y);
+	void windowResized(int w, int h);
+	void dragEvent(ofDragInfo dragInfo);
+	void gotMessage(ofMessage msg);
+	void rayTrace();
+	void drawGrid();
+	void drawAxis(glm::vec3 position);
+	ofColor ambient(ofColor diffuse);
+	ofColor lambert(const glm::vec3& p, const glm::vec3& norm, const ofColor diffuse, float distance, Ray r, Light light);
+	ofColor phong(const glm::vec3& p, const glm::vec3& norm, const ofColor diffuse, const ofColor specular, float power, float distance, Ray r, Light light);
+	ofColor shade(const glm::vec3& p, const glm::vec3& norm, const ofColor diffuse, float distance, const ofColor specular, float power, Ray r);
+	ofColor areaLightLambert(const glm::vec3& p, const glm::vec3& norm, const ofColor diffuse, float distance, Ray r, areaLight light);
+
+	void updateAngle(bool increase);
+
+	glm::vec3 planeNormal;
+	Plane p;
+	Ray r;
 
 
+	const float zero = 0.0;
 
-		const float zero = 0.0;
+	bool bHide = true;
+	bool bShowImage = false;
 
-		bool bHide = true;
-		bool bShowImage = false;
+	ofEasyCam  mainCam;
+	ofCamera imageCam;
+	ofCamera previewCam;
+	ofCamera* theCam;    // set to current camera either mainCam or sideCam
 
-		ofEasyCam  mainCam;
-		ofCamera sideCam;
-		ofCamera previewCam;
-		ofCamera* theCam;    // set to current camera either mainCam or sideCam
+	// set up one render camera to render image through
+	//
+	RenderCam renderCam;
+	ofImage image;
 
-		// set up one render camera to render image through
-		//
-		RenderCam renderCam;
-		ofImage image;
+	//object vectors
+	//
+	vector<SceneObject*> scene;
+	vector<Light*> light;
+	vector<areaLight*> areaLights;
+	int lightIndex;
 
-		//texture images
-		//
-		ofImage groundTexture;
-		ofImage groundTextureSpecular;
-
-		ofImage wallTexture;
-		ofImage wallTextureSpecular;
+	vector<glm::vec3> aimPoint;
+	vector<glm::vec3> areaLightPos;
+	vector<float> angle;
+	glm::vec3 mouseLast;
 
 
-		//object vectors
-		//
-		vector<SceneObject*> scene;
-		vector<Light*> light;
-		vector<Sphere*> aimPoint;
+	int imageWidth = 1200;
+	int imageHeight = 800;
 
-		vector<SceneObject*> selected;
+	int closestIndex = 0;
 
-		int imageWidth = 1200;
-		int imageHeight = 800;
-		int closestIndex = 0;
-		float sphereRadius = .5;
-		float aimPointRadius = .5;
-		glm::vec3 lastPoint;
-		int numofLights = 0;
 
-		//state variables
-		//
-		bool drawImage = false;
-		bool trace = false;
-		bool background = true;
-		bool blocked = false;
-		bool texture = false;
-		bool bDrag = false;
 
-		//GUI
-		//
-		ofxFloatSlider power;
-		ofxFloatSlider intensity;
-		ofxFloatSlider scale;
-		ofxFloatSlider spotLightAngle;
-		ofxFloatSlider areaLightWidth;
-		ofxIntSlider lightTypeToggle;
-		ofxVec3Slider color;
-		ofxLabel lightLabel;
-		ofxLabel sphereLabel;
-		ofxPanel gui;
+	//state variables
+	//
+	bool drawImage = false;
+	bool trace = false;
+	bool background = true;
+	bool blocked = false;
+	bool aimPointDrag = false;
+	bool lightDrag = false;
+	bool renderdraw = false;
+	bool aimPointSelect = false;
+	bool lightSelect = false;
+
+	//GUI
+	//
+	ofxFloatSlider power;
+	ofxFloatSlider intensity;
+	ofxFloatSlider areaLightIntensity;
+
+	ofxPanel gui;
+
+
 };
